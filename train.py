@@ -68,7 +68,7 @@ class NeRFSystem(LightningModule):
         items.pop("v_num", None)
         return items
 
-    def forward(self, rays, ts):
+    def forward(self, rays, ts, eval=False):
         """Do batched inference on rays using chunk."""
         B = rays.shape[0]
         results = defaultdict(list)
@@ -87,7 +87,7 @@ class NeRFSystem(LightningModule):
                             self.train_dataset.white_back)
 
             for k, v in rendered_ray_chunks.items():
-                results[k] += [v]
+                results[k] += [v.cpu() if eval else v]
 
         for k, v in results.items():
             results[k] = torch.cat(v, 0)
@@ -148,7 +148,7 @@ class NeRFSystem(LightningModule):
         rays = rays.squeeze() # (H*W, 3)
         rgbs = rgbs.squeeze() # (H*W, 3)
         ts = ts.squeeze() # (H*W)
-        results = self(rays, ts)
+        results = self(rays, ts, eval=True)
         loss_d = self.loss(results, rgbs)
         loss = sum(l for l in loss_d.values())
         log = {'val_loss': loss}
