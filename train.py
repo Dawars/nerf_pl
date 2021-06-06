@@ -148,7 +148,13 @@ class NeRFSystem(LightningModule):
         rays = rays.squeeze() # (H*W, 3)
         rgbs = rgbs.squeeze() # (H*W, 3)
         ts = ts.squeeze() # (H*W)
+        WH = batch['img_wh']
+
+        # rgbs = rgbs.detach().clone()
+        # del batch
         results = self(rays, ts, eval=True)
+        for k in ['weights_coarse', 'opacity_coarse', 'rgb_coarse', 'transient_sigmas', 'beta', 'rgb_fine', 'depth_fine']:
+            results[k] = results[k].to(self.device)
         loss_d = self.loss(results, rgbs)
         loss = sum(l for l in loss_d.values())
         log = {'val_loss': loss}
@@ -156,7 +162,6 @@ class NeRFSystem(LightningModule):
     
         if batch_nb == 0:
             if self.hparams.dataset_name == 'phototourism':
-                WH = batch['img_wh']
                 W, H = WH[0, 0].item(), WH[0, 1].item()
             else:
                 W, H = self.hparams.img_wh
