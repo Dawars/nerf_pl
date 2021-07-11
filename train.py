@@ -1,4 +1,7 @@
 import os
+
+from pytorch_lightning.plugins import DDPPlugin
+
 from opt import get_opts
 import torch
 from collections import defaultdict
@@ -28,7 +31,7 @@ from pytorch_lightning.loggers import TestTubeLogger
 class NeRFSystem(LightningModule):
     def __init__(self, hparams):
         super().__init__()
-        self.hparams = hparams
+        self.save_hyperparameters(hparams)
 
         self.loss = loss_dict['nerfw'](coef=1)
 
@@ -203,6 +206,7 @@ def main(hparams):
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       checkpoint_callback=True,
                       callbacks=[checkpoint_callback],
+                      plugins=[DDPPlugin(find_unused_parameters=False)],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
                       weights_summary=None,
