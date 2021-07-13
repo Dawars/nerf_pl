@@ -1,7 +1,5 @@
 import os
 
-from pytorch_lightning.plugins import DDPPlugin
-
 from opt import get_opts
 import torch
 from collections import defaultdict
@@ -26,6 +24,7 @@ from metrics import *
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TestTubeLogger
+from pytorch_lightning.plugins import DDPPlugin
 
 
 class NeRFSystem(LightningModule):
