@@ -190,27 +190,23 @@ class NeRFSystem(LightningModule):
 
 def main(hparams):
     system = NeRFSystem(hparams)
+    exp_name = f"{hparams.exp_name}_{hparams.reduce_images}"
     checkpoint_callback = \
-        ModelCheckpoint(dirpath=os.path.join(hparams.save_path, 'ckpts', hparams.exp_name),
+        ModelCheckpoint(dirpath=os.path.join(hparams.save_path, 'ckpts', exp_name),
                         filename='{epoch:d}',
                         monitor='val/psnr',
                         mode='max',
                         save_top_k=-1)
 
     logger = TensorBoardLogger(save_dir=os.path.join(hparams.save_path, 'logs'),
-                               name=hparams.exp_name,
-                               debug=False,
-                               create_git_tag=False,
+                               name=exp_name,
+                               default_hp_metric=False,
                                log_graph=False)
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
-                      checkpoint_callback=True,
                       callbacks=[checkpoint_callback],
-                      plugins=[DDPPlugin(find_unused_parameters=False)],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
-                      weights_summary=None,
-                      progress_bar_refresh_rate=hparams.refresh_every,
                       gpus=hparams.num_gpus,
                       accelerator="gpu",
                       devices=hparams.num_gpus,
