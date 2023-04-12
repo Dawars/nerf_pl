@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 from PIL import Image
 
-def visualize_depth(depth, cmap=cv2.COLORMAP_JET):
+def visualize_depth(depth, cmap=cv2.COLORMAP_TURBO):
     """
     depth: (H, W)
     """
