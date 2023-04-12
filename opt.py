@@ -101,5 +101,7 @@ def get_opts():
                         help='paths to save checkpoints to')
     parser.add_argument('--refresh_every', type=int, default=1,
                         help='print the progress bar every X steps')
+    parser.add_argument('--reduce_images', type=int, default=0,
+                        help='how much to reduce the number of images in phototourism dataset: *1/2^n')
 
     return parser.parse_args()

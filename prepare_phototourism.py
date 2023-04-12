@@ -11,40 +11,42 @@ def get_opts():
                         help='root directory of dataset')
     parser.add_argument('--img_downscale', type=int, default=1,
                         help='how much to downscale the images for phototourism dataset')
+    parser.add_argument('--reduce_images', type=int, default=0,
+                        help='how much to reduce the number of images in phototourism dataset: *1/2^n')
 
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = get_opts()
-    os.makedirs(os.path.join(args.root_dir, 'cache'), exist_ok=True)
+    os.makedirs(os.path.join(args.root_dir, f'cache_{args.reduce_images}'), exist_ok=True)
     print(f'Preparing cache for scale {args.img_downscale}...')
-    dataset = PhototourismDataset(args.root_dir, 'train', args.img_downscale)
+    dataset = PhototourismDataset(args.root_dir, 'train', args.img_downscale, reduce_images=args.reduce_images)
     # save img ids
-    with open(os.path.join(args.root_dir, f'cache/img_ids.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/img_ids.pkl'), 'wb') as f:
         pickle.dump(dataset.img_ids, f, pickle.HIGHEST_PROTOCOL)
-    with open(os.path.join(args.root_dir, f'cache/img_to_cam_id.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/img_to_cam_id.pkl'), 'wb') as f:
         pickle.dump(dataset.image_to_cam, f, pickle.HIGHEST_PROTOCOL)
     # save img paths
-    with open(os.path.join(args.root_dir, f'cache/image_paths.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/image_paths.pkl'), 'wb') as f:
         pickle.dump(dataset.image_paths, f, pickle.HIGHEST_PROTOCOL)
     # save Ks
-    with open(os.path.join(args.root_dir, f'cache/Ks{args.img_downscale}.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/Ks{args.img_downscale}.pkl'), 'wb') as f:
         pickle.dump(dataset.Ks, f, pickle.HIGHEST_PROTOCOL)
     # save scene points
-    np.save(os.path.join(args.root_dir, 'cache/xyz_world.npy'),
+    np.save(os.path.join(args.root_dir, f'cache_{args.reduce_images}/xyz_world.npy'),
             dataset.xyz_world)
     # save poses
-    np.save(os.path.join(args.root_dir, 'cache/poses.npy'),
+    np.save(os.path.join(args.root_dir, f'cache_{args.reduce_images}/poses.npy'),
             dataset.poses)
     # save near and far bounds
-    with open(os.path.join(args.root_dir, f'cache/nears.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/nears.pkl'), 'wb') as f:
         pickle.dump(dataset.nears, f, pickle.HIGHEST_PROTOCOL)
-    with open(os.path.join(args.root_dir, f'cache/fars.pkl'), 'wb') as f:
+    with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/fars.pkl'), 'wb') as f:
         pickle.dump(dataset.fars, f, pickle.HIGHEST_PROTOCOL)
     # save rays and rgbs
-    np.save(os.path.join(args.root_dir, f'cache/rays{args.img_downscale}.npy'),
+    np.save(os.path.join(args.root_dir, f'cache_{args.reduce_images}/rays{args.img_downscale}.npy'),
             dataset.all_rays.numpy())
-    np.save(os.path.join(args.root_dir, f'cache/rgbs{args.img_downscale}.npy'),
+    np.save(os.path.join(args.root_dir, f'cache_{args.reduce_images}/rgbs{args.img_downscale}.npy'),
             dataset.all_rgbs.numpy())
-    print(f"Data cache saved to {os.path.join(args.root_dir, 'cache')} !")
+    print(f"Data cache saved to {os.path.join(args.root_dir, f'cache_{args.reduce_images}')} !")
