@@ -23,8 +23,7 @@ from metrics import *
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.loggers import TestTubeLogger
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.loggers import TensorBoardLogger
 
 
 class NeRFSystem(LightningModule):
@@ -196,11 +195,11 @@ def main(hparams):
                         mode='max',
                         save_top_k=-1)
 
-    logger = TestTubeLogger(save_dir=os.path.join(hparams.save_path, 'logs'),
-                            name=hparams.exp_name,
-                            debug=False,
-                            create_git_tag=False,
-                            log_graph=False)
+    logger = TensorBoardLogger(save_dir=os.path.join(hparams.save_path, 'logs'),
+                               name=hparams.exp_name,
+                               debug=False,
+                               create_git_tag=False,
+                               log_graph=False)
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       checkpoint_callback=True,
@@ -211,7 +210,8 @@ def main(hparams):
                       weights_summary=None,
                       progress_bar_refresh_rate=hparams.refresh_every,
                       gpus=hparams.num_gpus,
-                      accelerator='ddp' if hparams.num_gpus>1 else None,
+                      accelerator="gpu",
+                      devices=hparams.num_gpus,
                       num_sanity_val_steps=1,
                       benchmark=True,
                       profiler="simple" if hparams.num_gpus==1 else None)
