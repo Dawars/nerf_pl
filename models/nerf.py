@@ -62,7 +62,7 @@ class NeRF(nn.Module):
         self.in_channels_xyz = in_channels_xyz
         self.in_channels_dir = in_channels_dir
 
-        self.encode_appearance = False if typ=='coarse' else encode_appearance
+        self.encode_appearance = encode_appearance
         self.in_channels_a = in_channels_a if encode_appearance else 0
         self.encode_transient = False if typ=='coarse' else encode_transient
         self.in_channels_t = in_channels_t
