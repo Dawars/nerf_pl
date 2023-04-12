@@ -23,7 +23,7 @@ from metrics import *
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 
 class NeRFSystem(LightningModule):
@@ -172,8 +172,11 @@ class NeRFSystem(LightningModule):
             img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
             depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
             stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
-            self.logger.experiment.add_images('val/GT_pred_depth',
-                                               stack, self.global_step)
+            self.logger.log_image(key="Eval Images/img", images=[img, img_gt], step=self.global_step)
+            self.logger.log_image(key="Eval Images/depth", images=[depth], step=self.global_step)
+
+            # self.logger.experiment.add_images('val/GT_pred_depth',
+            #                                    stack, self.global_step)
 
         psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
         log['val_psnr'] = psnr_
@@ -198,10 +201,7 @@ def main(hparams):
                         mode='max',
                         save_top_k=-1)
 
-    logger = TensorBoardLogger(save_dir=os.path.join(hparams.save_path, 'logs'),
-                               name=exp_name,
-                               default_hp_metric=False,
-                               log_graph=False)
+    logger = WandbLogger(name=exp_name, dir=hparams.save_path, project="nerfw")
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       callbacks=[checkpoint_callback],
