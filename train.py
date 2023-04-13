@@ -23,7 +23,7 @@ from metrics import *
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 
@@ -206,7 +206,7 @@ def main(hparams):
     logger = WandbLogger(name=exp_name, dir=hparams.save_path, project="nerfw")
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
-                      plugins=[DDPPlugin(find_unused_parameters=False)],
+                      strategy=DDPStrategy(find_unused_parameters=False),
                       callbacks=[checkpoint_callback],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
