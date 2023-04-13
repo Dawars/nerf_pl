@@ -192,6 +192,7 @@ class NeRFSystem(LightningModule):
 
 
 def main(hparams):
+    torch.set_float32_matmul_precision("high")
     system = NeRFSystem(hparams)
     exp_name = f"{hparams.exp_name}_{hparams.reduce_images}"
     checkpoint_callback = \
