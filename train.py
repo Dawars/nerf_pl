@@ -204,6 +204,7 @@ def main(hparams):
     logger = WandbLogger(name=exp_name, dir=hparams.save_path, project="nerfw")
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
+                      plugins=[DDPPlugin(find_unused_parameters=False)],
                       callbacks=[checkpoint_callback],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
