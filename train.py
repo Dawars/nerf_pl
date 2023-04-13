@@ -23,6 +23,7 @@ from metrics import *
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.plugins import DDPPlugin
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 
