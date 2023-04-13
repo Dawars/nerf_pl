@@ -207,7 +207,6 @@ def main(hparams):
                       callbacks=[checkpoint_callback],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
-                      gpus=hparams.num_gpus,
                       accelerator="gpu",
                       devices=hparams.num_gpus,
                       num_sanity_val_steps=1,
