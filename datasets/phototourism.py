@@ -41,7 +41,8 @@ class PhototourismDataset(Dataset):
 
     def read_meta(self):
         # read all files in the tsv first (split to train and test later)
-        tsv = glob.glob(os.path.join(self.root_dir, f"*{self.reduce_images}*.tsv"))[0]
+        tsv = glob.glob(os.path.join(self.root_dir, f"val.tsv"))[0]
+        # tsv = glob.glob(os.path.join(self.root_dir, f"*0.tsv"))[0]
         self.scene_name = os.path.basename(tsv)[:-4]
         self.files = pd.read_csv(tsv, sep='\t')
         self.files = self.files[~self.files['id'].isnull()] # remove data without id
