@@ -1,5 +1,7 @@
 import os
 
+from tqdm import tqdm
+
 from opt import get_opts
 import torch
 from collections import defaultdict
@@ -71,11 +73,11 @@ class NeRFSystem(LightningModule):
         items.pop("v_num", None)
         return items
 
-    def forward(self, rays, ts, eval=False):
+    def forward(self, rays, ts, eval=False, avg_embedding=None):
         """Do batched inference on rays using chunk."""
         B = rays.shape[0]
         results = defaultdict(list)
-        for i in range(0, B, self.hparams.chunk):
+        for i in tqdm(list(range(0, B, self.hparams.chunk)), disable=B <= self.hparams.chunk):
             rendered_ray_chunks = \
                 render_rays(self.models,
                             self.embeddings,
@@ -87,7 +89,8 @@ class NeRFSystem(LightningModule):
                             self.hparams.noise_std,
                             self.hparams.N_importance,
                             self.hparams.chunk, # chunk size is effective in val mode
-                            self.train_dataset.white_back)
+                            self.train_dataset.white_back,
+                            a_embedded=avg_embedding)
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v.cpu() if eval else v]
@@ -108,7 +111,8 @@ class NeRFSystem(LightningModule):
             kwargs['img_wh'] = tuple(self.hparams.img_wh)
             kwargs['perturbation'] = self.hparams.data_perturb
         self.train_dataset = dataset(split='train', **kwargs)
-        self.val_dataset = dataset(split='val', **kwargs)
+        kwargs.pop("use_cache")
+        self.val_dataset = dataset(split='test_train', use_cache=False, **kwargs)
 
     def configure_optimizers(self):
         self.optimizer = get_optimizer(self.hparams, self.models_to_train)
@@ -156,7 +160,9 @@ class NeRFSystem(LightningModule):
 
         # rgbs = rgbs.detach().clone()
         # del batch
-        results = self(rays, ts, eval=True)
+        avg_embedding = self.embedding_a(torch.arange(0, len(self.val_dataset), device="cuda")).mean(0)
+
+        results = self.forward(rays, ts, eval=True, avg_embedding=avg_embedding)
         for k in ['weights_coarse', 'opacity_coarse', 'rgb_coarse', 'transient_sigmas', 'beta', 'rgb_fine', 'depth_fine']:
             results[k] = results[k].to(self.device)
         loss_d = self.loss(results, rgbs)
@@ -174,9 +180,16 @@ class NeRFSystem(LightningModule):
                 img = results[f'rgb_{typ}'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
                 img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
                 depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
+                # img_pred_static = results['rgb_fine_static'].view(H, W, 3).cpu().numpy()
+                # img_pred_transient = results['_rgb_fine_transient'].view(H, W, 3).cpu().numpy()
+                # depth_pred_static = results['depth_fine_static'].view(H, W)
+                # depth_pred_transient = results['depth_fine_transient'].view(H, W)
+
+                # normal = visualize_normal(results[f'normal'].view(H, W)) # (3, H, W)
                 stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
                 self.logger.log_image(key="Eval Images/img", images=[img, img_gt], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/depth", images=[depth], step=self.current_epoch)
+                # self.logger.log_image(key="Eval Images/normal", images=[normal], step=self.current_epoch)
 
                 # self.logger.experiment.add_images('val/GT_pred_depth',
                 #                                    stack, self.global_step)

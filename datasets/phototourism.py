@@ -85,7 +85,7 @@ class PhototourismDataset(Dataset):
 
                 cam_id = self.image_to_cam[id_]
                 cam = camdata[cam_id]
-                img_w, img_h = int(cam.params[2]*2), int(cam.params[3]*2)
+                img_w, img_h = int(cam.width), int(cam.height)
                 img_w_, img_h_ = img_w//self.img_downscale, img_h//self.img_downscale
                 K[0, 0] = cam.params[0]*img_w_/img_w # fx
                 K[1, 1] = cam.params[1]*img_h_/img_h # fy
@@ -186,7 +186,7 @@ class PhototourismDataset(Dataset):
                 self.all_rgbs = torch.cat(self.all_rgbs, 0) # ((N_images-1)*h*w, 3)
         
         elif self.split in ['val', 'test_train']: # use the first image as val image (also in train)
-            self.val_id = self.img_ids_train[0]
+            self.val_id = self.img_ids_test[0]
 
         else: # for testing, create a parametric rendering path
             # test poses and appearance index are defined in eval.py
@@ -215,7 +215,7 @@ class PhototourismDataset(Dataset):
             if self.split == 'val':
                 id_ = self.val_id
             else:
-                id_ = self.img_ids_train[idx]
+                id_ = self.img_ids_test[0]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
 
             img = Image.open(os.path.join(self.root_dir, 'dense/images',

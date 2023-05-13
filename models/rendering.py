@@ -265,8 +265,10 @@ def render_rays(models,
 
         model = models['fine']
         if model.encode_appearance:
-            if 'a_embedded' in kwargs:
+            if 'a_embedded' in kwargs and kwargs['a_embedded'] is not None:
                 a_embedded = kwargs['a_embedded']
+                a_embedded = repeat(a_embedded, 'c -> (n1) c', n1=len(ts))
+
             else:
                 a_embedded = embeddings['a'](ts)
         output_transient = kwargs.get('output_transient', True) and model.encode_transient
