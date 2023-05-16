@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -7,7 +8,7 @@ import torch
 from collections import defaultdict
 
 from torch.utils.data import DataLoader
-from datasets import dataset_dict
+from datasets import dataset_dict, PhototourismDataset
 
 # models
 from models.nerf import *
@@ -90,7 +91,9 @@ class NeRFSystem(LightningModule):
                             self.hparams.N_importance,
                             self.hparams.chunk, # chunk size is effective in val mode
                             self.train_dataset.white_back,
-                            a_embedded=avg_embedding)
+                            a_embedded=avg_embedding,
+                            test_time=eval,
+                            )
 
             for k, v in rendered_ray_chunks.items():
                 results[k] += [v.cpu() if eval else v]
@@ -112,7 +115,7 @@ class NeRFSystem(LightningModule):
             kwargs['perturbation'] = self.hparams.data_perturb
         self.train_dataset = dataset(split='train', **kwargs)
         kwargs.pop("use_cache")
-        self.val_dataset = dataset(split='test_train', use_cache=False, **kwargs)
+        self.val_dataset: PhototourismDataset = dataset(split='val', use_cache=False, **kwargs)
 
     def configure_optimizers(self):
         self.optimizer = get_optimizer(self.hparams, self.models_to_train)
@@ -158,53 +161,94 @@ class NeRFSystem(LightningModule):
         ts = ts.squeeze() # (H*W)
         WH = batch['img_wh']
 
+        filename = self.val_dataset.image_paths[ts[0].item()]
+        sky_mask = np.array(Image.open(Path("/home/dawars/projects/master_thesis/NeuralRecon-W/output") / f"{filename}_mask.png"))
+
         # rgbs = rgbs.detach().clone()
         # del batch
-        avg_embedding = self.embedding_a(torch.arange(0, len(self.val_dataset), device="cuda")).mean(0)
+        avg_embedding = self.embedding_a(torch.arange(0, self.val_dataset.N_images_train, device="cuda")).mean(0)
 
         results = self.forward(rays, ts, eval=True, avg_embedding=avg_embedding)
-        for k in ['weights_coarse', 'opacity_coarse', 'rgb_coarse', 'transient_sigmas', 'beta', 'rgb_fine', 'depth_fine']:
-            results[k] = results[k].to(self.device)
-        loss_d = self.loss(results, rgbs)
-        loss = sum(l for l in loss_d.values())
-        log = {'val_loss': loss}
+        # for k in ['weights_coarse', 'opacity_coarse', 'rgb_coarse', 'transient_sigmas', 'beta', 'rgb_fine', 'depth_fine',
+        #           '_rgb_fine_static']:
+        #     results[k] = results[k].to(self.device)
+        # loss_d = self.loss(results, rgbs)
+        # loss = sum(l for l in loss_d.values())
+        log = {}
+        # log = {'val_loss': loss}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
-    
-        
-        if batch_nb == 0 and self.global_step > 0:
-            if self.trainer.global_rank == 0:
-                if self.hparams.dataset_name == 'phototourism':
-                    W, H = WH[0, 0].item(), WH[0, 1].item()
-                else:
-                    W, H = self.hparams.img_wh
-                img = results[f'rgb_{typ}'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
-                img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
-                depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
-                # img_pred_static = results['rgb_fine_static'].view(H, W, 3).cpu().numpy()
-                # img_pred_transient = results['_rgb_fine_transient'].view(H, W, 3).cpu().numpy()
-                # depth_pred_static = results['depth_fine_static'].view(H, W)
-                # depth_pred_transient = results['depth_fine_transient'].view(H, W)
 
-                # normal = visualize_normal(results[f'normal'].view(H, W)) # (3, H, W)
-                stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
-                self.logger.log_image(key="Eval Images/img", images=[img, img_gt], step=self.current_epoch)
-                self.logger.log_image(key="Eval Images/depth", images=[depth], step=self.current_epoch)
+        if self.trainer.global_rank == 0:
+            if self.hparams.dataset_name == 'phototourism':
+                W, H = WH[0, 0].item(), WH[0, 1].item()
+            else:
+                W, H = self.hparams.img_wh
+            img = results[f'rgb_{typ}'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+            # img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+            depth = results[f'depth_{typ}'].view(H, W) # (3, H, W)
+            img_pred_static = results['rgb_fine_static'].view(H, W, 3).permute(2, 0, 1).cpu().numpy()
+            _img_pred_static = results['_rgb_fine_static'].view(H, W, 3).permute(2, 0, 1).cpu().numpy()
+            img_pred_transient = results['rgb_fine_transient'].view(H, W, 3).permute(2, 0, 1).cpu().numpy()
+            depth_pred_static = results['depth_fine_static'].view(H, W)
+            depth_pred_transient = results['depth_fine_transient'].view(H, W)
+
+            # normal = visualize_normal(results[f'normal'].view(H, W)) # (3, H, W)
+
+            if batch_nb == 0:
+                from inference import apply_depth_colormap
+                near_plane = depth[sky_mask].min() - 1e-5
+                far_plane = depth[sky_mask].max() + 1e-5
+                depth_mask = apply_depth_colormap(depth, near_plane=near_plane, far_plane=far_plane)
+                static_depth = depth_pred_static.cpu().numpy()
+                near_plane = static_depth[sky_mask].min() - 1e-5
+                far_plane = static_depth[sky_mask].max() + 1e-5
+                depth_static_mask = apply_depth_colormap(static_depth, near_plane=near_plane, far_plane=far_plane)
+
+                self.logger.log_image(key="Eval Images/img", images=[img], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/img_transient", images=[img_pred_transient.transpose(1, 2, 0)], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/img_static", images=[img_pred_static.transpose(1, 2, 0)], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/_img_static", images=[_img_pred_static.transpose(1, 2, 0)], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/depth", images=[visualize_depth(depth)], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/depth_mask", images=[depth_mask], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/depth_static", images=[visualize_depth(depth_pred_static)], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/depth_static_mask", images=[depth_static_mask], step=self.current_epoch)
+                self.logger.log_image(key="Eval Images/depth_transient", images=[visualize_depth(depth_pred_transient)], step=self.current_epoch)
                 # self.logger.log_image(key="Eval Images/normal", images=[normal], step=self.current_epoch)
 
-                # self.logger.experiment.add_images('val/GT_pred_depth',
-                #                                    stack, self.global_step)
+                # self.logger.experiment.add_images('val/img', img[None], self.global_step)
+                # self.logger.experiment.add_images('val/img_static', img_pred_static[None], self.global_step)
+                # self.logger.experiment.add_images('val/_img_static', _img_pred_static[None], self.global_step)
+                # self.logger.experiment.add_images('val/depth_static', visualize_depth(depth_pred_static)[None], self.global_step)
 
-        psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
+                # plt.imsave(os.path.join(self.logger.root_dir, f"{filename}_rgb.png"), img_pred_static)
+                # plt.imsave(os.path.join(self.logger.root_dir, f"{filename}_depth.png"),
+                #            apply_depth_colormap(static_depth, near_plane=near_plane, far_plane=far_plane))
+                # self.logger.experiment.add_images('val/depth_static_mask', depth_mask_2, self.global_step)
+                # self.logger.experiment.add_images('val/depth_static_mask_white', apply_depth_colormap(static_depth, near_plane=near_plane, far_plane=far_plane, accumulation=sky_mask[..., np.newaxis]).transpose(2,0,1)[None], self.global_step)
+
+        psnr_ = psnr(results[f'rgb_{typ}'], rgbs.cpu())
+        psnr_static_ = psnr(results['rgb_fine_static'], rgbs.cpu())
+        psnr_mask = psnr(results[f'rgb_{typ}'], rgbs.cpu(), valid_mask=sky_mask.flatten())
+        psnr_static_mask = psnr(results['rgb_fine_static'], rgbs.cpu(), valid_mask=sky_mask.flatten())
         log['val_psnr'] = psnr_
+        log['val_psnr_static'] = psnr_static_
+        log['val_psnr_mask'] = psnr_mask
+        log['val_psnr_static_mask'] = psnr_static_mask
 
         return log
 
     def validation_epoch_end(self, outputs):
-        mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         mean_psnr = torch.stack([x['val_psnr'] for x in outputs]).mean()
+        mean_psnr_static = torch.stack([x['val_psnr_static'] for x in outputs]).mean()
+        mean_psnr_mask = torch.stack([x['val_psnr_mask'] for x in outputs]).mean()
+        mean_psnr_static_mask = torch.stack([x['val_psnr_static_mask'] for x in outputs]).mean()
 
-        self.log('val/loss', mean_loss, sync_dist=True)
+        # self.log('val/loss', mean_loss, sync_dist=True)
         self.log('val/psnr', mean_psnr, prog_bar=True, sync_dist=True)
+        self.log('val/psnr_static', mean_psnr_static, prog_bar=True, sync_dist=True)
+        self.log('val/psnr_mask', mean_psnr_mask, prog_bar=True, sync_dist=True)
+        self.log('val/psnr_static_mask', mean_psnr_static_mask, prog_bar=True, sync_dist=True)
 
 
 def main(hparams):
@@ -221,13 +265,15 @@ def main(hparams):
     logger = WandbLogger(name=exp_name, dir=hparams.save_path, project="nerfw")
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
-                      strategy=DDPStrategy(find_unused_parameters=False),
+                      # strategy=DDPStrategy(find_unused_parameters=False),
                       callbacks=[checkpoint_callback],
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
                       accelerator="gpu",
                       devices=hparams.num_gpus,
                       num_sanity_val_steps=1,
+                      # limit_val_batches=2,
+                      check_val_every_n_epoch=5,
                       benchmark=True,
                       profiler="simple" if hparams.num_gpus==1 else None)
 

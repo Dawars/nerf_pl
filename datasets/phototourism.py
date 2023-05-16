@@ -29,8 +29,8 @@ class PhototourismDataset(Dataset):
         self.split = split
         assert img_downscale >= 1, 'image can only be downsampled, please set img_downscale>=1!'
         self.img_downscale = img_downscale
-        # if split == 'val': # image downscale=1 will cause OOM in val mode
-        #    self.img_downscale = max(2, self.img_downscale)
+        if split == 'val': # image downscale=1 will cause OOM in val mode
+           self.img_downscale = 1
         self.val_num = max(1, val_num) # at least 1
         self.use_cache = use_cache
         self.reduce_images = reduce_images
@@ -41,8 +41,9 @@ class PhototourismDataset(Dataset):
 
     def read_meta(self):
         # read all files in the tsv first (split to train and test later)
-        tsv = glob.glob(os.path.join(self.root_dir, f"val.tsv"))[0]
-        # tsv = glob.glob(os.path.join(self.root_dir, f"*0.tsv"))[0]
+        # tsv = glob.glob(os.path.join(self.root_dir, f"val.tsv"))[0]
+        # tsv = glob.glob(os.path.join(self.root_dir, f"brandenburg_gate.tsv"))[0]
+        tsv = glob.glob(os.path.join(self.root_dir, f"*{self.reduce_images}.tsv"))[0]
         self.scene_name = os.path.basename(tsv)[:-4]
         self.files = pd.read_csv(tsv, sep='\t')
         self.files = self.files[~self.files['id'].isnull()] # remove data without id
@@ -201,7 +202,7 @@ class PhototourismDataset(Dataset):
         if self.split == 'test_train':
             return self.N_images_train
         if self.split == 'val':
-            return self.val_num
+            return self.N_images_test
         return len(self.poses_test)
 
     def __getitem__(self, idx):
@@ -213,7 +214,7 @@ class PhototourismDataset(Dataset):
         elif self.split in ['val', 'test_train']:
             sample = {}
             if self.split == 'val':
-                id_ = self.val_id
+                id_ = self.img_ids_test[idx]
             else:
                 id_ = self.img_ids_test[0]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
