@@ -155,6 +155,10 @@ class NeRFSystem(LightningModule):
         return loss
 
     def validation_step(self, batch, batch_nb):
+        # render 1st val image but skip others
+        if self.current_epoch % 5 != 0 and batch_nb != 0:
+            return
+
         rays, rgbs, ts = batch['rays'], batch['rgbs'], batch['ts']
         rays = rays.squeeze() # (H*W, 3)
         rgbs = rgbs.squeeze() # (H*W, 3)
@@ -235,7 +239,10 @@ class NeRFSystem(LightningModule):
         log['val_psnr_mask'] = psnr_mask
         log['val_psnr_static_mask'] = psnr_static_mask
 
-        return log
+        self.log('val/psnr', psnr_, on_epoch=True)
+        self.log('val/psnr_static', psnr_static_, on_epoch=True)
+        self.log('val/psnr_mask', psnr_mask, on_epoch=True)
+        self.log('val/psnr_static_mask', psnr_static_mask, on_epoch=True)
 
     def validation_epoch_end(self, outputs):
         # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -273,7 +280,7 @@ def main(hparams):
                       devices=hparams.num_gpus,
                       num_sanity_val_steps=1,
                       # limit_val_batches=2,
-                      check_val_every_n_epoch=5,
+                      # check_val_every_n_epoch=5,
                       benchmark=True,
                       profiler="simple" if hparams.num_gpus==1 else None)
 
