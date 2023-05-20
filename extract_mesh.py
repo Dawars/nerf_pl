@@ -1,11 +1,14 @@
+from math import ceil
 from pathlib import Path
 
+import pymeshlab
 import torch
 import os
 import numpy as np
 import trimesh
 from collections import defaultdict
 
+import yaml
 from skimage import measure
 from tqdm import tqdm
 
@@ -16,16 +19,41 @@ from utils import load_ckpt
 
 torch.backends.cudnn.benchmark = True
 
+# coarse_mask = torch.tensor(np.load("/home/dawars/projects/sdfstudio/mask.npy"))
 coarse_mask = None
-mask = None
+if coarse_mask is not None:
+    # we need to permute here as pytorch's grid_sample use (z, y, x)
+    coarse_mask = coarse_mask.permute(2, 1, 0)[None, None].cuda().float()
+#
+# radius = 4.6
+# origin = np.array([0.568699, -0.0935532, 6.28958])
+# scale = 11.384292602539062
+# bb_neus = np.array([origin - radius, origin + radius]) / scale
+# extends = np.array([4.6, 2.16173, 4.6])
+# bb = np.array([origin - extends, origin + extends]) / scale
+# with open("/mnt/hdd/3d_recon/neural_recon_w/jena/observatorium/config.yaml", "r") as yamlfile:
+with open("/mnt/hdd/3d_recon/neural_recon_w/heritage-recon/brandenburg_gate/config.yaml", "r") as yamlfile:
+    scene_config = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
-radius = 4.6
-origin = np.array([0.568699, -0.0935532, 6.28958])
+radius = scene_config["radius"]
+
+origin = np.array(scene_config["origin"])
 scale = 11.384292602539062
-bb = np.array([origin - radius,
-               origin + radius]) / scale
+bb_neus = np.array([origin - radius, origin + radius]) / scale
+extends = np.array([4.6, 2.16173, 4.6])
+bb = np.array([origin - extends, origin + extends]) / scale
+# brandenburg
+sfm_to_gt = np.array(scene_config["sfm2gt"])
+gt_to_sfm = np.linalg.inv(sfm_to_gt)
+sfm_vert1 = gt_to_sfm[:3, :3] @ np.array(scene_config["eval_bbx"][0]) + gt_to_sfm[:3, 3]
+sfm_vert2 = gt_to_sfm[:3, :3] @ np.array(scene_config["eval_bbx"][1]) + gt_to_sfm[:3, 3]
+bbx_min = np.minimum(sfm_vert1, sfm_vert2)
+bbx_max = np.maximum(sfm_vert1, sfm_vert2)
 
-avg_pool_3d = torch.nn.AvgPool3d(2, stride=2)
+bb_conf = np.stack([bbx_min, bbx_max], axis=1).T / scale
+bb = bb_conf
+
+# avg_pool_3d = torch.nn.AvgPool3d(2, stride=2)
 upsample = torch.nn.Upsample(scale_factor=2, mode="nearest")
 
 N_vocab = 1500
@@ -46,7 +74,7 @@ embedding_dir = PosEmbedding(N_emb_dir - 1, N_emb_dir)
 embedding_xyz.cuda()
 embedding_dir.cuda()
 embeddings = [embedding_xyz, embedding_dir]
-nerf_fine = NeRF("fine", W=512,
+nerf_fine = NeRF("fine", W=256,
                  in_channels_xyz=6 * N_emb_xyz + 3,
                  in_channels_dir=6 * N_emb_dir + 3,
                  encode_appearance=encode_appearance,
@@ -109,15 +137,16 @@ def evaluate(points):
         a_embedded = torch.zeros(xyz_embedded.shape[0], N_a, device=xyz_embedded.device)
         t_embedded = torch.zeros(xyz_embedded.shape[0], N_tau, device=xyz_embedded.device)
         xyzdir_embedded = torch.cat([xyz_embedded, dir_embedded, a_embedded, t_embedded], 1)
-        z_.append(nerf_fine(xyzdir_embedded).cpu()[:, -1:])
-    z_ = torch.cat(z_, axis=0)
+        z_.append(nerf_fine(xyzdir_embedded).cpu()[:, -1])
+    z_ = torch.cat(z_, axis=0).cuda()
     return z_
 
 
 def extract_mesh(epoch: int, variation: int, split: int):
-    global mask
+    # global mask
     global coarse_mask
-    checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_brandenburg_2_{variation}_{split}/epoch={epoch}.ckpt")
+    # checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_brandenburg_2_{variation}_{split}/epoch={epoch}.ckpt")
+    checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_gate_0/epoch=19.ckpt")
     load_ckpt(nerf_fine, str(checkpoint_path), model_name='nerf_fine')
     nerf_fine.cuda().eval()
 
@@ -138,13 +167,13 @@ def extract_mesh(epoch: int, variation: int, split: int):
         current_mask = None
 
     points_pyramid = [points]
-    # ignore pyramid
     # for _ in range(3):
     #     points = avg_pool_3d(points[None])[0]
     #     points_pyramid.append(points)
     # points_pyramid = points_pyramid[::-1]
 
     # evalute pyramid with mask
+    mask = None
     threshold = 2 * (xmax - xmin) / N * 8
     for pid, pts in enumerate(points_pyramid):
         coarse_N = pts.shape[-1]
@@ -171,14 +200,14 @@ def extract_mesh(epoch: int, variation: int, split: int):
             print("ratio", pts_to_eval.shape[0] / pts.shape[0])
 
         # if pid < 3:
-        #     # update mask
-        #     mask = torch.abs(pts_sdf) < threshold
-        #     mask = mask.reshape(coarse_N, coarse_N, coarse_N)[None, None]
-        #     mask = upsample(mask.float()).bool()
+        # #     update mask
+        # mask = torch.abs(pts_sdf) < threshold
+        # mask = mask.reshape(coarse_N, coarse_N, coarse_N)[None, None]
+        # mask = upsample(mask.float()).bool()
         #
-        #     pts_sdf = pts_sdf.reshape(coarse_N, coarse_N, coarse_N)[None, None]
-        #     pts_sdf = upsample(pts_sdf)
-        #     pts_sdf = pts_sdf.reshape(-1)
+        # pts_sdf = pts_sdf.reshape(coarse_N, coarse_N, coarse_N)[None, None]
+        # pts_sdf = upsample(pts_sdf)
+        # pts_sdf = pts_sdf.reshape(-1)
 
         threshold /= 2.0
 
@@ -189,10 +218,13 @@ def extract_mesh(epoch: int, variation: int, split: int):
     #     valid_z = z.reshape(N, N, N)[current_mask]
     #     if valid_z.shape[0] <= 0 or (np.min(valid_z) > level or np.max(valid_z) < level):
     #         break  # todo loop
+    print(f"{np.min(pts_sdf)} {np.max(pts_sdf)}")
 
-    for level in tqdm(range(5, 16, 2)):
+    for level in tqdm(range(1, ceil(pts_sdf.max()))):
+    # for level in tqdm([10]):
         if not (np.min(pts_sdf) > level or np.max(pts_sdf) < level):
-            out_path = checkpoint_path.with_name(f"mesh_{variation}_{split}_{epoch}_{level}.ply")
+            out_path = checkpoint_path.with_name(f"mesh_{epoch}_{level}.ply")
+            out_path_simplify = checkpoint_path.with_name(f"mesh_{epoch}_{level}_simple.ply")
 
             pts_sdf = pts_sdf.astype(np.float32)
             verts, faces, normals, _ = measure.marching_cubes(
@@ -207,13 +239,34 @@ def extract_mesh(epoch: int, variation: int, split: int):
             )
             verts = verts + np.array([xmin, ymin, zmin])
 
-            meshcrop = trimesh.Trimesh(verts * scale, faces, normals)
+            meshcrop = trimesh.Trimesh(verts * radius, faces, normals)
             meshcrop.export(str(out_path))
+
+            # simplify
+            ms = pymeshlab.MeshSet()
+            ms.load_new_mesh(str(out_path))
+
+            ms.meshing_decimation_quadric_edge_collapse(targetfacenum=2_000_000)
+            ms.save_current_mesh(str(out_path_simplify), save_face_color=False)
+        else:
+            print(f"Level not in min max {variation}_{split}_{epoch}_{level}")
 
 
 if __name__ == "__main__":
-    for split in range(7):
-        for epoch in [0, 4, 9, 14, 19]:
-            for variation in [1, 5]:
-                extract_mesh(epoch, variation, split)
-                break
+    extract_mesh(19, 1, 0)
+    # split_to_variation = {
+    #     0: 1,
+    #     1: 4,
+    #     2: 1,
+    #     3: 1,
+    #     4: 4,
+    #     5: 4,
+    #     6: 4,
+    # }
+    #
+    # for split in range(7):
+    #     for epoch in [0, 4, 9, 14, 19]:
+    #         # for variation in [1, 5]:
+    #         print(f"{split}: {epoch}")
+    #         extract_mesh(epoch, split_to_variation[split], split)
+    # #             break
