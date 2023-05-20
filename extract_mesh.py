@@ -2,8 +2,6 @@ from math import ceil
 from pathlib import Path
 
 import pymeshlab
-import torch
-import os
 import numpy as np
 import trimesh
 from collections import defaultdict
@@ -19,6 +17,7 @@ from utils import load_ckpt
 
 torch.backends.cudnn.benchmark = True
 
+simplify = False
 # coarse_mask = torch.tensor(np.load("/home/dawars/projects/sdfstudio/mask.npy"))
 coarse_mask = None
 if coarse_mask is not None:
@@ -39,7 +38,7 @@ radius = scene_config["radius"]
 
 origin = np.array(scene_config["origin"])
 scale = 11.384292602539062
-bb_neus = np.array([origin - radius, origin + radius]) / scale
+bb_neus = np.array([origin - scale, origin + scale]) / scale
 extends = np.array([4.6, 2.16173, 4.6])
 bb = np.array([origin - extends, origin + extends]) / scale
 # brandenburg
@@ -142,11 +141,11 @@ def evaluate(points):
     return z_
 
 
-def extract_mesh(epoch: int, variation: int, split: int):
+def extract_mesh(epoch: int, split: int):
     # global mask
     global coarse_mask
     # checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_brandenburg_2_{variation}_{split}/epoch={epoch}.ckpt")
-    checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_gate_0/epoch=19.ckpt")
+    checkpoint_path = Path(f"/mnt/hdd/3d_recon/nerfw/ckpts/nerfw_gate_{split}/epoch={epoch}.ckpt")
     load_ckpt(nerf_fine, str(checkpoint_path), model_name='nerf_fine')
     nerf_fine.cuda().eval()
 
@@ -221,7 +220,7 @@ def extract_mesh(epoch: int, variation: int, split: int):
     print(f"{np.min(pts_sdf)} {np.max(pts_sdf)}")
 
     for level in tqdm(range(1, ceil(pts_sdf.max()))):
-    # for level in tqdm([10]):
+        # for level in tqdm([10]):
         if not (np.min(pts_sdf) > level or np.max(pts_sdf) < level):
             out_path = checkpoint_path.with_name(f"mesh_{epoch}_{level}.ply")
             out_path_simplify = checkpoint_path.with_name(f"mesh_{epoch}_{level}_simple.ply")
@@ -239,34 +238,24 @@ def extract_mesh(epoch: int, variation: int, split: int):
             )
             verts = verts + np.array([xmin, ymin, zmin])
 
-            meshcrop = trimesh.Trimesh(verts * radius, faces, normals)
+            meshcrop = trimesh.Trimesh(verts * scale, faces, normals)
             meshcrop.export(str(out_path))
 
             # simplify
-            ms = pymeshlab.MeshSet()
-            ms.load_new_mesh(str(out_path))
+            if simplify:
+                ms = pymeshlab.MeshSet()
+                ms.load_new_mesh(str(out_path))
 
-            ms.meshing_decimation_quadric_edge_collapse(targetfacenum=2_000_000)
-            ms.save_current_mesh(str(out_path_simplify), save_face_color=False)
+                ms.meshing_decimation_quadric_edge_collapse(targetfacenum=2_000_000)
+                ms.save_current_mesh(str(out_path_simplify), save_face_color=False)
         else:
-            print(f"Level not in min max {variation}_{split}_{epoch}_{level}")
+            print(f"Level not in min max {split}_{epoch}_{level}")
 
 
 if __name__ == "__main__":
-    extract_mesh(19, 1, 0)
-    # split_to_variation = {
-    #     0: 1,
-    #     1: 4,
-    #     2: 1,
-    #     3: 1,
-    #     4: 4,
-    #     5: 4,
-    #     6: 4,
-    # }
-    #
-    # for split in range(7):
-    #     for epoch in [0, 4, 9, 14, 19]:
-    #         # for variation in [1, 5]:
-    #         print(f"{split}: {epoch}")
-    #         extract_mesh(epoch, split_to_variation[split], split)
-    # #             break
+    # extract_mesh(19, 0)
+    epoch = 19
+    for split in range(7):
+        extract_mesh(19, split)
+        print(f"{split}: {epoch}")
+        extract_mesh(epoch, split)
