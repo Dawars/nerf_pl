@@ -17,6 +17,8 @@ from utils import load_ckpt
 
 torch.backends.cudnn.benchmark = True
 
+torch.set_float32_matmul_precision("high")
+
 simplify = False
 # coarse_mask = torch.tensor(np.load("/home/dawars/projects/sdfstudio/mask.npy"))
 coarse_mask = None
