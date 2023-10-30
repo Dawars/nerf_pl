@@ -243,7 +243,7 @@ class NeRFSystem(LightningModule):
         self.log('val/psnr_mask', psnr_mask, on_epoch=True)
         self.log('val/psnr_static_mask', psnr_static_mask, on_epoch=True)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         mean_psnr = torch.stack([x['val_psnr'] for x in outputs]).mean()
         mean_psnr_static = torch.stack([x['val_psnr_static'] for x in outputs]).mean()
@@ -273,7 +273,6 @@ def main(hparams):
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       # strategy=DDPStrategy(find_unused_parameters=False),
                       callbacks=[checkpoint_callback],
-                      resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
                       accelerator="gpu",
                       devices=hparams.num_gpus,
@@ -283,7 +282,7 @@ def main(hparams):
                       benchmark=True,
                       profiler="simple" if hparams.num_gpus==1 else None)
 
-    trainer.fit(system)
+    trainer.fit(system, ckpt_path=hparams.ckpt_path)
 
 
 if __name__ == '__main__':
