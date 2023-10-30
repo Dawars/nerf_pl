@@ -14,7 +14,7 @@ from .colmap_utils import \
 
 
 class PhototourismDataset(Dataset):
-    def __init__(self, root_dir, split='train', img_downscale=1, val_num=1, use_cache=False, reduce_images=0):
+    def __init__(self, root_dir, split='train', img_downscale=1, val_num=1, use_cache=False, setting=""):
         """
         img_downscale: how much scale to downsample the training images.
                        The original image sizes are around 500~100, so value of 1 or 2
@@ -33,7 +33,7 @@ class PhototourismDataset(Dataset):
            self.img_downscale = 1
         self.val_num = max(1, val_num) # at least 1
         self.use_cache = use_cache
-        self.reduce_images = reduce_images
+        self.setting = setting
         self.define_transforms()
 
         self.read_meta()
@@ -43,7 +43,7 @@ class PhototourismDataset(Dataset):
         # read all files in the tsv first (split to train and test later)
         # tsv = glob.glob(os.path.join(self.root_dir, f"val.tsv"))[0]
         # tsv = glob.glob(os.path.join(self.root_dir, f"brandenburg_gate.tsv"))[0]
-        tsv = glob.glob(os.path.join(self.root_dir, f"*{self.reduce_images}.tsv"))[0]
+        tsv = glob.glob(os.path.join(self.root_dir, f"*{self.setting}.tsv"))[0]
         self.scene_name = os.path.basename(tsv)[:-4]
         self.files = pd.read_csv(tsv, sep='\t')
         self.files = self.files[~self.files['id'].isnull()] # remove data without id
@@ -53,11 +53,11 @@ class PhototourismDataset(Dataset):
         # Attention! The 'id' column in the tsv is BROKEN, don't use it!!!!
         # Instead, read the id from images.bin using image file name!
         if self.use_cache:
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/img_ids.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/img_ids.pkl'), 'rb') as f:
                 self.img_ids = pickle.load(f)
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/img_to_cam_id.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/img_to_cam_id.pkl'), 'rb') as f:
                 self.image_to_cam = pickle.load(f)
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/image_paths.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/image_paths.pkl'), 'rb') as f:
                 self.image_paths = pickle.load(f)
         else:
             imdata = read_images_binary(os.path.join(self.root_dir, 'dense/sparse/images.bin'))
@@ -76,7 +76,7 @@ class PhototourismDataset(Dataset):
 
         # Step 2: read and rescale camera intrinsics
         if self.use_cache:
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/Ks{self.img_downscale}.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/Ks{self.img_downscale}.pkl'), 'rb') as f:
                 self.Ks = pickle.load(f)
         else:
             self.Ks = {} # {id: K}
@@ -97,7 +97,7 @@ class PhototourismDataset(Dataset):
 
         # Step 3: read c2w poses (of the images in tsv file only) and correct the order
         if self.use_cache:
-            self.poses = np.load(os.path.join(self.root_dir, f'cache_{self.reduce_images}/poses.npy'))
+            self.poses = np.load(os.path.join(self.root_dir, f'cache_{self.setting}/poses.npy'))
         else:
             w2c_mats = []
             bottom = np.array([0, 0, 0, 1.]).reshape(1, 4)
@@ -113,10 +113,10 @@ class PhototourismDataset(Dataset):
 
         # Step 4: correct scale
         if self.use_cache:
-            self.xyz_world = np.load(os.path.join(self.root_dir, f'cache_{self.reduce_images}/xyz_world.npy'))
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/nears.pkl'), 'rb') as f:
+            self.xyz_world = np.load(os.path.join(self.root_dir, f'cache_{self.setting}/xyz_world.npy'))
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/nears.pkl'), 'rb') as f:
                 self.nears = pickle.load(f)
-            with open(os.path.join(self.root_dir, f'cache_{self.reduce_images}/fars.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache_{self.setting}/fars.pkl'), 'rb') as f:
                 self.fars = pickle.load(f)
         else:
             pts3d = read_points3d_binary(os.path.join(self.root_dir, 'dense/sparse/points3D.bin'))
@@ -151,10 +151,10 @@ class PhototourismDataset(Dataset):
         if self.split == 'train': # create buffer of all rays and rgb data
             if self.use_cache:
                 all_rays = np.load(os.path.join(self.root_dir,
-                                                f'cache_{self.reduce_images}/rays{self.img_downscale}.npy'))
+                                                f'cache_{self.setting}/rays{self.img_downscale}.npy'))
                 self.all_rays = torch.from_numpy(all_rays)
                 all_rgbs = np.load(os.path.join(self.root_dir,
-                                                f'cache_{self.reduce_images}/rgbs{self.img_downscale}.npy'))
+                                                f'cache_{self.setting}/rgbs{self.img_downscale}.npy'))
                 self.all_rgbs = torch.from_numpy(all_rgbs)
             else:
                 self.all_rays = []

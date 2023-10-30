@@ -26,7 +26,6 @@ from metrics import *
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 
@@ -67,7 +66,7 @@ class NeRFSystem(LightningModule):
                                   beta_min=hparams.beta_min)
             self.models['fine'] = self.nerf_fine
         self.models_to_train += [self.models]
-        self.reduce_images = hparams.reduce_images
+        self.setting = hparams.setting
 
     def get_progress_bar_dict(self):
         items = super().get_progress_bar_dict()
@@ -109,7 +108,7 @@ class NeRFSystem(LightningModule):
             kwargs['img_downscale'] = self.hparams.img_downscale
             kwargs['val_num'] = self.hparams.num_gpus
             kwargs['use_cache'] = self.hparams.use_cache
-            kwargs['reduce_images'] = self.reduce_images
+            kwargs['setting'] = self.setting
         elif self.hparams.dataset_name == 'blender':
             kwargs['img_wh'] = tuple(self.hparams.img_wh)
             kwargs['perturbation'] = self.hparams.data_perturb
@@ -259,9 +258,9 @@ class NeRFSystem(LightningModule):
 
 
 def main(hparams):
-    torch.set_float32_matmul_precision("high")
+    # torch.set_float32_matmul_precision("high")
     system = NeRFSystem(hparams)
-    exp_name = f"{hparams.exp_name}_{hparams.reduce_images}"
+    exp_name = f"{hparams.exp_name}_{hparams.setting}"
     checkpoint_callback = \
         ModelCheckpoint(dirpath=os.path.join(hparams.save_path, 'ckpts', exp_name),
                         filename='{epoch:d}',

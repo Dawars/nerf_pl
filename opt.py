@@ -8,7 +8,7 @@ def get_opts():
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'phototourism'],
                         help='which dataset to train/val')
-    # for blender
+    parser.add_argument('--setting', type=str, default='', help="subset of dataset")
     parser.add_argument('--data_perturb', nargs="+", type=str, default=[],
                         help='''what perturbation to add to data.
                                 Available choices: [], ["color"], ["occ"] or ["color", "occ"]
@@ -101,7 +101,5 @@ def get_opts():
                         help='paths to save checkpoints to')
     parser.add_argument('--refresh_every', type=int, default=1,
                         help='print the progress bar every X steps')
-    parser.add_argument('--reduce_images', type=int, default=0,
-                        help='how much to reduce the number of images in phototourism dataset: *1/2^n')
 
     return parser.parse_args()

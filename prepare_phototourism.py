@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pickle
 
+
 def get_opts():
     parser = argparse.ArgumentParser()
 
@@ -11,8 +12,8 @@ def get_opts():
                         help='root directory of dataset')
     parser.add_argument('--img_downscale', type=int, default=1,
                         help='how much to downscale the images for phototourism dataset')
-    parser.add_argument('--reduce_images', type=int, default=0,
-                        help='how much to reduce the number of images in phototourism dataset: *1/2^n')
+    parser.add_argument('--setting', type=str, default="",
+                        help='subset of images')
 
     return parser.parse_args()
 
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     args = get_opts()
     os.makedirs(os.path.join(args.root_dir, f'cache_{args.reduce_images}'), exist_ok=True)
     print(f'Preparing cache for scale {args.img_downscale}...')
-    dataset = PhototourismDataset(args.root_dir, 'train', args.img_downscale, reduce_images=args.reduce_images)
+    dataset = PhototourismDataset(args.root_dir, 'train', args.img_downscale, setting=args.setting)
     # save img ids
     with open(os.path.join(args.root_dir, f'cache_{args.reduce_images}/img_ids.pkl'), 'wb') as f:
         pickle.dump(dataset.img_ids, f, pickle.HIGHEST_PROTOCOL)
