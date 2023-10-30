@@ -243,12 +243,15 @@ class NeRFSystem(LightningModule):
         # self.log('val/psnr_mask', psnr_mask, on_epoch=True)
         # self.log('val/psnr_static_mask', psnr_static_mask, on_epoch=True)
 
-    def on_validation_epoch_end(self, outputs):
-        # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        mean_psnr = torch.stack([x['val_psnr'] for x in outputs]).mean()
-        mean_psnr_static = torch.stack([x['val_psnr_static'] for x in outputs]).mean()
-        # mean_psnr_mask = torch.stack([x['val_psnr_mask'] for x in outputs]).mean()
-        # mean_psnr_static_mask = torch.stack([x['val_psnr_static_mask'] for x in outputs]).mean()
+    def on_validation_epoch_start(self) -> None:
+        self.outputs = []
+
+    def on_validation_epoch_end(self):
+        # mean_loss = torch.stack([x['val_loss'] for x in self.outputs]).mean()
+        mean_psnr = torch.stack([x['val_psnr'] for x in self.outputs]).mean()
+        mean_psnr_static = torch.stack([x['val_psnr_static'] for x in self.outputs]).mean()
+        # mean_psnr_mask = torch.stack([x['val_psnr_mask'] for x in self.outputs]).mean()
+        # mean_psnr_static_mask = torch.stack([x['val_psnr_static_mask'] for x in self.outputs]).mean()
 
         # self.log('val/loss', mean_loss, sync_dist=True)
         self.log('val/psnr', mean_psnr, prog_bar=True, sync_dist=True)
