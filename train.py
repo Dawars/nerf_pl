@@ -164,8 +164,8 @@ class NeRFSystem(LightningModule):
         ts = ts.squeeze() # (H*W)
         WH = batch['img_wh']
 
-        filename = self.val_dataset.image_paths[ts[0].item()]
-        sky_mask = np.array(Image.open(Path("/home/dawars/projects/master_thesis/NeuralRecon-W/output") / f"{filename}_mask.png"))
+        # filename = self.val_dataset.image_paths[ts[0].item()]
+        # sky_mask = np.array(Image.open(Path("/home/dawars/projects/master_thesis/NeuralRecon-W/output") / f"{filename}_mask.png"))
 
         # rgbs = rgbs.detach().clone()
         # del batch
@@ -199,22 +199,22 @@ class NeRFSystem(LightningModule):
 
             if batch_nb == 0:
                 from inference import apply_depth_colormap
-                near_plane = depth[sky_mask].min() - 1e-5
-                far_plane = depth[sky_mask].max() + 1e-5
-                depth_mask = apply_depth_colormap(depth, near_plane=near_plane, far_plane=far_plane)
-                static_depth = depth_pred_static.cpu().numpy()
-                near_plane = static_depth[sky_mask].min() - 1e-5
-                far_plane = static_depth[sky_mask].max() + 1e-5
-                depth_static_mask = apply_depth_colormap(static_depth, near_plane=near_plane, far_plane=far_plane)
+                # near_plane = depth[sky_mask].min() - 1e-5
+                # far_plane = depth[sky_mask].max() + 1e-5
+                # depth_mask = apply_depth_colormap(depth, near_plane=near_plane, far_plane=far_plane)
+                # static_depth = depth_pred_static.cpu().numpy()
+                # near_plane = static_depth[sky_mask].min() - 1e-5
+                # far_plane = static_depth[sky_mask].max() + 1e-5
+                # depth_static_mask = apply_depth_colormap(static_depth, near_plane=near_plane, far_plane=far_plane)
 
                 self.logger.log_image(key="Eval Images/img", images=[img], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/img_transient", images=[img_pred_transient.transpose(1, 2, 0)], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/img_static", images=[img_pred_static.transpose(1, 2, 0)], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/_img_static", images=[_img_pred_static.transpose(1, 2, 0)], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/depth", images=[visualize_depth(depth)], step=self.current_epoch)
-                self.logger.log_image(key="Eval Images/depth_mask", images=[depth_mask], step=self.current_epoch)
+                # self.logger.log_image(key="Eval Images/depth_mask", images=[depth_mask], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/depth_static", images=[visualize_depth(depth_pred_static)], step=self.current_epoch)
-                self.logger.log_image(key="Eval Images/depth_static_mask", images=[depth_static_mask], step=self.current_epoch)
+                # self.logger.log_image(key="Eval Images/depth_static_mask", images=[depth_static_mask], step=self.current_epoch)
                 self.logger.log_image(key="Eval Images/depth_transient", images=[visualize_depth(depth_pred_transient)], step=self.current_epoch)
                 # self.logger.log_image(key="Eval Images/normal", images=[normal], step=self.current_epoch)
 
@@ -231,30 +231,30 @@ class NeRFSystem(LightningModule):
 
         psnr_ = psnr(results[f'rgb_{typ}'], rgbs.cpu())
         psnr_static_ = psnr(results['rgb_fine_static'], rgbs.cpu())
-        psnr_mask = psnr(results[f'rgb_{typ}'], rgbs.cpu(), valid_mask=sky_mask.flatten())
-        psnr_static_mask = psnr(results['rgb_fine_static'], rgbs.cpu(), valid_mask=sky_mask.flatten())
+        # psnr_mask = psnr(results[f'rgb_{typ}'], rgbs.cpu(), valid_mask=sky_mask.flatten())
+        # psnr_static_mask = psnr(results['rgb_fine_static'], rgbs.cpu(), valid_mask=sky_mask.flatten())
         log['val_psnr'] = psnr_
         log['val_psnr_static'] = psnr_static_
-        log['val_psnr_mask'] = psnr_mask
-        log['val_psnr_static_mask'] = psnr_static_mask
+        # log['val_psnr_mask'] = psnr_mask
+        # log['val_psnr_static_mask'] = psnr_static_mask
 
         self.log('val/psnr', psnr_, on_epoch=True)
         self.log('val/psnr_static', psnr_static_, on_epoch=True)
-        self.log('val/psnr_mask', psnr_mask, on_epoch=True)
-        self.log('val/psnr_static_mask', psnr_static_mask, on_epoch=True)
+        # self.log('val/psnr_mask', psnr_mask, on_epoch=True)
+        # self.log('val/psnr_static_mask', psnr_static_mask, on_epoch=True)
 
     def on_validation_epoch_end(self, outputs):
         # mean_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         mean_psnr = torch.stack([x['val_psnr'] for x in outputs]).mean()
         mean_psnr_static = torch.stack([x['val_psnr_static'] for x in outputs]).mean()
-        mean_psnr_mask = torch.stack([x['val_psnr_mask'] for x in outputs]).mean()
-        mean_psnr_static_mask = torch.stack([x['val_psnr_static_mask'] for x in outputs]).mean()
+        # mean_psnr_mask = torch.stack([x['val_psnr_mask'] for x in outputs]).mean()
+        # mean_psnr_static_mask = torch.stack([x['val_psnr_static_mask'] for x in outputs]).mean()
 
         # self.log('val/loss', mean_loss, sync_dist=True)
         self.log('val/psnr', mean_psnr, prog_bar=True, sync_dist=True)
         self.log('val/psnr_static', mean_psnr_static, prog_bar=True, sync_dist=True)
-        self.log('val/psnr_mask', mean_psnr_mask, prog_bar=True, sync_dist=True)
-        self.log('val/psnr_static_mask', mean_psnr_static_mask, prog_bar=True, sync_dist=True)
+        # self.log('val/psnr_mask', mean_psnr_mask, prog_bar=True, sync_dist=True)
+        # self.log('val/psnr_static_mask', mean_psnr_static_mask, prog_bar=True, sync_dist=True)
 
 
 def main(hparams):
