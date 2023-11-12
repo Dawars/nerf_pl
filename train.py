@@ -238,8 +238,8 @@ class NeRFSystem(LightningModule):
         # log['val_psnr_mask'] = psnr_mask
         # log['val_psnr_static_mask'] = psnr_static_mask
 
-        self.log('val/psnr', psnr_, on_step=True, on_epoch=True, sync_dist=True)
-        self.log('val/psnr_static', psnr_static_, on_step=True, on_epoch=True, sync_dist=True)
+        self.log('val/psnr', psnr_, on_step=True, on_epoch=True)  # , sync_dist=True (RuntimeError: Tensors must be CUDA and dense)
+        self.log('val/psnr_static', psnr_static_, on_step=True, on_epoch=True)
         # self.log('val/psnr_mask', psnr_mask, on_step=True, on_epoch=True)
         # self.log('val/psnr_static_mask', psnr_static_mask, on_step=True, on_epoch=True)
 
