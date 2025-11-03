@@ -159,7 +159,10 @@ class PhototourismDataset(Dataset):
             else:
                 self.all_rays = []
                 self.all_rgbs = []
-                for id_ in self.img_ids_train:
+                is_training = torch.ones([len(self.img_ids_test) + len(self.img_ids_train)], dtype=bool)
+                is_training[:len(self.img_ids_test)] = False
+                print(f"is_training_shape {is_training.shape}, {is_training.sum()=}")
+                for id_, training in zip(self.img_ids_test + self.img_ids_train, is_training):
                     c2w = torch.FloatTensor(self.poses_dict[id_])
 
                     img = Image.open(os.path.join(self.root_dir, 'dense/images',
@@ -170,13 +173,18 @@ class PhototourismDataset(Dataset):
                         img_h = img_h//self.img_downscale
                         img = img.resize((img_w, img_h), Image.LANCZOS)
                     img = self.transform(img) # (3, h, w)
-                    img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
-                    self.all_rgbs += [img]
-                    
-                    directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])
+
+                    directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])  # (H, W, 3)
+
+                    if not is_training:  # nerfw eval: add left side of test images
+                        w_half = img_w // 2
+                        img = img[:, :, :w_half]
+                        directions = directions[:, :w_half, :]
                     rays_o, rays_d = get_rays(directions, c2w)
                     rays_t = id_ * torch.ones(len(rays_o), 1)
 
+                    img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
+                    self.all_rgbs += [img]
                     self.all_rays += [torch.cat([rays_o, rays_d,
                                                 self.nears[id_]*torch.ones_like(rays_o[:, :1]),
                                                 self.fars[id_]*torch.ones_like(rays_o[:, :1]),
