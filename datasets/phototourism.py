@@ -176,7 +176,7 @@ class PhototourismDataset(Dataset):
 
                     directions = get_ray_directions(img_h, img_w, self.Ks[self.image_to_cam[id_]])  # (H, W, 3)
 
-                    if not is_training:  # nerfw eval: add left side of test images
+                    if not training:  # nerfw eval: add left side of test images
                         w_half = img_w // 2
                         img = img[:, :, :w_half]
                         directions = directions[:, :w_half, :]
