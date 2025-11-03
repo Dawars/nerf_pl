@@ -183,7 +183,7 @@ class PhototourismDataset(Dataset):
                     rays_o, rays_d = get_rays(directions, c2w)
                     rays_t = id_ * torch.ones(len(rays_o), 1)
 
-                    img = img.view(3, -1).permute(1, 0) # (h*w, 3) RGB
+                    img = img.reshape(3, -1).permute(1, 0) # (h*w, 3) RGB
                     self.all_rgbs += [img]
                     self.all_rays += [torch.cat([rays_o, rays_d,
                                                 self.nears[id_]*torch.ones_like(rays_o[:, :1]),
