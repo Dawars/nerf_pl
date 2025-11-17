@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset
+from pathlib import Path
 import glob
 import numpy as np
 import os
@@ -43,9 +44,14 @@ class PhototourismDataset(Dataset):
         # read all files in the tsv first (split to train and test later)
         # tsv = glob.glob(os.path.join(self.root_dir, f"val.tsv"))[0]
         # tsv = glob.glob(os.path.join(self.root_dir, f"brandenburg_gate.tsv"))[0]
-        tsv = glob.glob(os.path.join(self.root_dir, f"*{self.setting}.tsv"))[0]
-        self.scene_name = os.path.basename(tsv)[:-4]
-        self.files = pd.read_csv(tsv, sep='\t')
+        setting_suffix = '' if self.setting == '' else f'_{self.setting}'
+        self.scene_name = Path(self.root_dir).stem
+        image_list = list(Path(self.root_dir).glob(f"{self.scene_name}{setting_suffix}.tsv"))
+        if len(image_list) == 1:
+            print(f"Found .tsv file for image list {image_list[0]}")
+        else:
+            raise Exception(f"Image list not found {self.scene_name}{setting_suffix}.tsv or {len(image_list)} found instead of 1")
+        self.files = pd.read_csv(image_list[0], sep='\t')
         self.files = self.files[~self.files['id'].isnull()] # remove data without id
         self.files.reset_index(inplace=True, drop=True)
 
